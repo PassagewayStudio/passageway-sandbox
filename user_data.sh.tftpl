@@ -1,0 +1,42 @@
+#!/bin/bash
+# No -x on purpose: it would write the tunnel token into the cloud-init log
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y ca-certificates curl gnupg
+
+# Docker from the official repo
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list
+apt-get update
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+systemctl enable --now docker
+
+# AWS CLI (to read the tunnel token from Parameter Store)
+snap wait system seed.loaded
+snap install aws-cli --classic
+
+mkdir -p /opt/sandbox
+cd /opt/sandbox
+
+TOKEN=$(/snap/bin/aws ssm get-parameter --region ${region} --name ${tunnel_token_param} --with-decryption --query Parameter.Value --output text)
+umask 077
+echo "TUNNEL_TOKEN=$TOKEN" > .env
+umask 022
+
+cat > docker-compose.yml <<'EOF_COMPOSE'
+${compose}
+EOF_COMPOSE
+
+cat > Caddyfile <<'EOF_CADDY'
+${caddyfile}
+EOF_CADDY
+
+# Internal network for session containers: no route to the internet or the host's LAN.
+# The gateway service (next step) will attach to both this and the edge network.
+docker network create --internal sandbox-sessions || true
+
+docker compose up -d

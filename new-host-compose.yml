@@ -1,0 +1,66 @@
+# Runs on the sandbox EC2 host. Nothing here publishes a port on the host.
+# Traffic path: Cloudflare Access -> cloudflared -> caddy -> gateway -> session container
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    networks: [edge]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    networks: [edge]
+    depends_on: [caddy]
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: gateway   # session networks attach to this name
+    restart: unless-stopped
+    environment:
+      - DOCKER_HOST=tcp://docker-proxy:2375
+      - CF_TEAM_DOMAIN=${CF_TEAM_DOMAIN:?set CF_TEAM_DOMAIN in .env}
+      - CF_ACCESS_AUD=${CF_ACCESS_AUD:?set CF_ACCESS_AUD in .env}
+      - GATEWAY_CONTAINER=gateway
+      - SESSION_MINUTES=45
+      - MAX_SESSIONS=3
+      - EVENT_WEBHOOK_URL=${EVENT_WEBHOOK_URL:-}
+    networks: [edge, dockerapi]
+    depends_on: [docker-proxy]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  # Limits what the gateway may ask Docker to do (no exec, no volumes, no swarm, etc.)
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    restart: unless-stopped
+    environment:
+      VERSION: 1
+      CONTAINERS: 1
+      NETWORKS: 1
+      POST: 1
+      DELETE: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [dockerapi]
+
+networks:
+  edge:
+  dockerapi:
+    internal: true

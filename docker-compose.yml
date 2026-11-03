@@ -1,0 +1,23 @@
+# Local test setup for the Linux portal. In production, the session manager
+# (n8n + proxy) starts one container per approved user with these same limits.
+services:
+  linux-portal:
+    build:
+      context: .
+      dockerfile: Dockerfile.linux
+    image: passageway/portal-linux:dev
+    ports:
+      - "127.0.0.1:7681:7681"   # localhost only; never expose ttyd directly
+    read_only: true              # base image is immutable
+    tmpfs:
+      - /home/learner:uid=1000,gid=1000,mode=0755,size=64m
+      - /tmp:size=32m
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    restart: "no"

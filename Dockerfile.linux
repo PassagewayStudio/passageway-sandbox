@@ -1,0 +1,30 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Practice tools for the Linux basics portal (all open source)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ttyd bash-completion man-db manpages less \
+      vim nano tmux htop procps psmisc \
+      curl wget iproute2 iputils-ping dnsutils net-tools \
+      git jq tree file lsof strace \
+    && rm -rf /var/lib/apt/lists/*
+
+# Non-root learner account, no sudo
+RUN (userdel -r ubuntu || true) \
+ && useradd -m -s /bin/bash -u 1000 learner
+
+# Skeleton copied into the (tmpfs) home at session start
+RUN mkdir -p /opt/skel && cp -a /home/learner/. /opt/skel/
+COPY motd.txt /etc/motd
+RUN echo 'cat /etc/motd' >> /opt/skel/.bashrc \
+ && echo 'export PS1="\[\e[32m\]learner@sandbox\[\e[0m\]:\[\e[34m\]\w\[\e[0m\]\$ "' >> /opt/skel/.bashrc
+
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+USER learner
+WORKDIR /home/learner
+EXPOSE 7681
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

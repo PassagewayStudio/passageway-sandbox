@@ -1,0 +1,34 @@
+{
+	admin off
+	auto_https off
+}
+
+# Plain HTTP inside the host: TLS is handled by Cloudflare at the edge.
+:80 {
+	encode gzip
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		# Only the Passageway site may embed the sandbox in an iframe
+		Content-Security-Policy "frame-ancestors 'self' https://passagewaystudio.com https://www.passagewaystudio.com"
+	}
+
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	handle {
+		# Cloudflare Access adds this header after login. This is only a cheap
+		# presence check; the gateway service verifies the JWT signature and
+		# reads the user's email from it.
+		@no_access {
+			not header Cf-Access-Jwt-Assertion *
+		}
+		respond @no_access "Forbidden" 403
+
+		# Gateway service (built in the next step). WebSockets pass through automatically.
+		reverse_proxy gateway:8080
+	}
+}

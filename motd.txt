@@ -1,0 +1,7 @@
+
+  Welcome to the Passageway Studio Linux sandbox.
+
+  - This session is temporary and resets when it ends (30-60 min).
+  - You are a normal user (no root). Break things, it's safe.
+  - Try: ls, cat, grep, man grep, ps aux, df -h, ip a
+
