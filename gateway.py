@@ -30,6 +30,7 @@ SESSION_MINUTES = int(os.getenv("SESSION_MINUTES", "45"))
 MAX_SESSIONS = int(os.getenv("MAX_SESSIONS", "3"))
 GATEWAY_CONTAINER = os.getenv("GATEWAY_CONTAINER", "gateway")
 EVENT_WEBHOOK_URL = os.getenv("EVENT_WEBHOOK_URL", "")
+PUBLIC_HOST = os.getenv("PUBLIC_HOST", "sandbox.passagewaystudio.com").strip().lower()
 TTYD_PORT = 7681
 LABEL = "passageway.sandbox"
 
@@ -89,7 +90,13 @@ def same_origin(headers) -> bool:
     origin = headers.get("origin")
     if not origin:
         return True
-    return urlparse(origin).netloc == headers.get("host")
+    netloc = urlparse(origin).netloc.lower()
+    # Behind the tunnel the Host header may be rewritten, so trust the configured
+    # public hostname as well as Host.
+    ok = netloc == PUBLIC_HOST or netloc == (headers.get("host") or "").lower()
+    if not ok:
+        log.warning("origin check failed: origin=%r host=%r public=%r", origin, headers.get("host"), PUBLIC_HOST)
+    return ok
 
 
 # ---------- docker helpers (blocking; call via to_thread) ----------

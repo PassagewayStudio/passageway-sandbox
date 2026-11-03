@@ -10,7 +10,7 @@
 	header {
 		-Server
 		X-Content-Type-Options nosniff
-		Referrer-Policy no-referrer
+		Referrer-Policy same-origin
 		# Only the Passageway site may embed the sandbox in an iframe
 		Content-Security-Policy "frame-ancestors 'self' https://passagewaystudio.com https://www.passagewaystudio.com"
 	}
